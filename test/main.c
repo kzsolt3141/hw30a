@@ -11,6 +11,7 @@
 
 #include "adc.h"
 #include "uart.h"
+#include "timer2.h"
 
 /**
  * USART RX interrupt callback handle context
@@ -33,9 +34,9 @@ static void USART_RXC_cb_handle(void* ctx) {
 }
 
 /**
- * ADC interrupt callback handle context
+ * ADC and timer callback handle context
  */
-struct ADC_cb_ctx_t {
+struct cb_ctx_t {
     uint16_t adc[2];  // received adc
     uint8_t  toggle;
 };
@@ -47,13 +48,19 @@ struct ADC_cb_ctx_t {
  * ADC data (ADC) should be saved in this function
  */
 static void ADC_cb_handle(void* ctx, uint16_t adc) {
-    struct ADC_cb_ctx_t* t_ctx = (struct ADC_cb_ctx_t*)ctx;
+    struct cb_ctx_t* t_ctx = (struct cb_ctx_t*)ctx;
 
     t_ctx->adc[t_ctx->toggle & 0x01] = adc;
     t_ctx->toggle++;
 
     ADMUX  &= 0xF8;  // clear admux
     ADMUX |= t_ctx->toggle & 0x01;
+}
+
+static void TIMER2_PWM_cb_handle(void* ctx) {
+    struct cb_ctx_t* t_ctx = (struct cb_ctx_t*)ctx;
+
+    OCR2 = 30 + (t_ctx->adc[0] >> 5);  // 0 ..1024 -> 30 .. 64 meaning Ton= [1..2] ms
 }
 
 int main(void) {
@@ -75,9 +82,9 @@ int main(void) {
 
     // ADC INIT
     //-------------------------------
-    struct ADC_cb_ctx_t ADC_ctx = {};
+    struct cb_ctx_t ctx = {};
 
-    regiter_ADC_isr_cb(ADC_cb_handle, &ADC_ctx);
+    regiter_ADC_isr_cb(ADC_cb_handle, &ctx);
 
     sts = ADC_init(ADC_PS_128, 1, 1);
     if (sts) return sts;
@@ -86,8 +93,18 @@ int main(void) {
 
     printf("Init Done ADC\n");
 
+    // TIMER2 init
+    //-------------------------------
+    regiter_TIMER2_isr_cb(TIMER2_PWM_cb_handle, &ctx);
+
+    sts = TIMER2_PWM_init(0, TIMER2_PS_PRESCALE_256, 1);
+    if (sts) return sts;
+
+    printf("Init Done TIMER2\n");
+    //-------------------------------
+
     while (1) {
-        printf("test %d %d\n", ADC_ctx.adc[0],ADC_ctx.adc[1]);
+        printf("test %d %d\n", ctx.adc[0], ctx.adc[1]);
         _delay_ms(100);
     }
     return 0;
