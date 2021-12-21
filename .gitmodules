@@ -1,0 +1,9 @@
+[submodule "uart"]
+	path = uart
+	url = git@github.com:kzsolt3141/uart.git
+[submodule "timer"]
+	path = timer
+	url = git@github.com:kzsolt3141/timer.git
+[submodule "adc"]
+	path = adc
+	url = git@github.com:kzsolt3141/adc.git
